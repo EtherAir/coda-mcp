@@ -22,7 +22,7 @@ export async function getPageContent(docId: string, pageIdOrName: string) {
 
     requestId = beginExportResp.data.id;
   } catch (error) {
-    throw new Error(`Failed to get page content: ${error}`);
+    throw new Error(`Failed to get page content : ${error instanceof Error ? error.message : String(error)}`);
   }
 
   // Poll for export status
@@ -49,7 +49,7 @@ export async function getPageContent(docId: string, pageIdOrName: string) {
         break;
       }
     } catch (error) {
-      throw new Error(`Failed to get page content export status: ${error}`);
+      throw new Error(`Failed to get page content export status : ${error instanceof Error ? error.message : String(error)}`);
     }
 
     retries++;

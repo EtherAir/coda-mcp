@@ -12,7 +12,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc && chmod 755 dist/index.js",
+    "build": "tsc",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run --coverage",

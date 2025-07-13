@@ -61,7 +61,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to list documents: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to list documents : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -77,7 +77,7 @@ server.tool(
       const resp = await getDoc({ path: { docId }, throwOnError: true });
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to get document: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to get document : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -98,7 +98,7 @@ server.tool(
       });
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to create document: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to create document : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -120,7 +120,7 @@ server.tool(
       });
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to update document: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to update document : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -157,7 +157,7 @@ server.tool(
       };
     } catch (error) {
       return {
-        content: [{ type: "text", text: `Failed to list pages: ${error}` }],
+        content: [{ type: "text", text: `Failed to list pages : ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,
       };
     }
@@ -196,7 +196,7 @@ server.tool(
         content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }],
       };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to create page: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to create page : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -216,7 +216,7 @@ server.tool(
       });
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to delete page: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to delete page : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -238,7 +238,7 @@ server.tool(
 
       return { content: [{ type: "text", text: content }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to get page content: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to get page content : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -268,7 +268,7 @@ server.tool(
       return { content: [{ type: "text", text: preview }] };
     } catch (error) {
       return {
-        content: [{ type: "text", text: `Failed to peek page: ${error}` }],
+        content: [{ type: "text", text: `Failed to peek page : ${error instanceof Error ? error.message : String(error)}` }],
         isError: true,
       };
     }
@@ -302,7 +302,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to replace page content: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to replace page content : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -334,7 +334,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to append page content: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to append page content : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -361,7 +361,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(createResp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to duplicate page: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to duplicate page : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -388,7 +388,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to rename page: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to rename page : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -415,7 +415,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to list tables: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to list tables : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -436,7 +436,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to get table: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to get table : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -489,7 +489,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to get table summary: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to get table summary : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -517,7 +517,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to list columns: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to list columns : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -539,7 +539,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to get column: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to get column : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -570,7 +570,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to list rows: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to list rows : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -594,7 +594,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to get row: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to get row : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -628,7 +628,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to create rows: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to create rows : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -659,7 +659,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to update row: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to update row : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -681,7 +681,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to delete row: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to delete row : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -704,7 +704,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to delete rows: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to delete rows : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -731,7 +731,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to list formulas: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to list formulas : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -752,7 +752,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to get formula: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to get formula : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -779,7 +779,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to list controls: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to list controls : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -800,7 +800,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to get control: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to get control : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -823,7 +823,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to push button: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to push button : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -841,7 +841,7 @@ server.tool(
       const resp = await whoami({ throwOnError: true });
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to get user info: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to get user info : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -883,7 +883,7 @@ server.tool(
         }] 
       };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to search tables: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to search tables : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -940,7 +940,7 @@ server.tool(
         }] 
       };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to search pages: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to search pages : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -983,10 +983,11 @@ server.tool(
             data: resp.data 
           });
         } catch (error) {
-          results.push({ 
-            rowId: update.rowIdOrName, 
-            success: false, 
-            error: error.toString() 
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          results.push({
+            rowId: update.rowIdOrName,
+            success: false,
+            error: errorMessage
           });
         }
       }
@@ -1003,7 +1004,7 @@ server.tool(
         }] 
       };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to bulk update rows: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to bulk update rows : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
@@ -1060,7 +1061,7 @@ server.tool(
 
       return { content: [{ type: "text", text: JSON.stringify(stats, null, 2) }] };
     } catch (error) {
-      return { content: [{ type: "text", text: `Failed to get document stats: ${error}` }], isError: true };
+      return { content: [{ type: "text", text: `Failed to get document stats : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
     }
   },
 );
