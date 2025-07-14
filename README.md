@@ -80,21 +80,6 @@ Required environment variables:
 
 - `API_KEY`: Your Coda API key. You can generate one from your Coda account settings.
 
-This MCP server is also available with Docker, like so:
-
-```json
-{
-  "mcpServers": {
-    "coda": {
-      "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "API_KEY", "reaperberri/coda-mcp:latest"],
-      "env": {
-        "API_KEY": "..."
-      }
-    }
-  }
-}
-```
 
 ## Local Setup
 
