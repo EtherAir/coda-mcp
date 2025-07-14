@@ -6,15 +6,57 @@ This project implements a Model Context Protocol (MCP) server that acts as a bri
 
 The server exposes the following tools to the MCP client:
 
-- **`coda_list_documents`**: Lists all documents available to the user.
-- **`coda_list_pages`**: Lists all pages within the configured Coda document with pagination support.
-- **`coda_create_page`**: Creates a new page in the document, optionally under a specified parent page (creating a subpage) and populating it with initial markdown content.
-- **`coda_get_page_content`**: Retrieves the content of a specified page (by ID or name) as markdown.
-- **`coda_replace_page_content`**: Replaces the content of a specified page with new markdown content.
-- **`coda_append_page_content`**: Appends new markdown content to the end of a specified page.
-- **`coda_duplicate_page`**: Creates a copy of an existing page with a new name.
-- **`coda_rename_page`**: Renames an existing page.
-- **`coda_peek_page`**: Peek into the beginning of a page and return a limited number of lines.
+### Document Operations
+- **`coda_list_documents`**: List or search available documents with optional filtering
+- **`coda_get_document`**: Get detailed information about a specific document
+- **`coda_create_document`**: Create a new document, optionally from a template
+- **`coda_update_document`**: Update document properties like title and icon
+- **`coda_get_document_stats`**: Get comprehensive statistics and insights about a document
+
+### Page Operations
+- **`coda_list_pages`**: List pages in a document with pagination support
+- **`coda_create_page`**: Create a new page, optionally under a parent page with initial content
+- **`coda_delete_page`**: Delete a page from the document
+- **`coda_get_page_content`**: Retrieve the content of a page as markdown
+- **`coda_peek_page`**: Get a preview of the beginning of a page (limited lines)
+- **`coda_replace_page_content`**: Replace the entire content of a page with new markdown
+- **`coda_append_page_content`**: Append new markdown content to the end of a page
+- **`coda_duplicate_page`**: Create a copy of an existing page with a new name
+- **`coda_rename_page`**: Rename an existing page and optionally update its subtitle
+- **`coda_search_pages`**: Search for pages by name or content within a document
+
+### Table Operations
+- **`coda_list_tables`**: List all tables and views in a document
+- **`coda_get_table`**: Get detailed information about a specific table or view
+- **`coda_get_table_summary`**: Get a comprehensive summary including row count, columns, and sample data
+- **`coda_search_tables`**: Search for tables by name across a document
+
+### Column Operations
+- **`coda_list_columns`**: List all columns in a table with optional visibility filtering
+- **`coda_get_column`**: Get detailed information about a specific column
+
+### Row Operations
+- **`coda_list_rows`**: List rows in a table with filtering, pagination, and sorting
+- **`coda_get_row`**: Get detailed information about a specific row
+- **`coda_create_rows`**: Create or update multiple rows in a table (upsert)
+- **`coda_update_row`**: Update a specific row in a table
+- **`coda_delete_row`**: Delete a specific row from a table
+- **`coda_delete_rows`**: Delete multiple rows from a table
+- **`coda_bulk_update_rows`**: Update multiple rows with different values in batch
+
+### Formula Operations
+- **`coda_list_formulas`**: List all named formulas in a document
+- **`coda_get_formula`**: Get detailed information about a specific formula
+
+### Control Operations
+- **`coda_list_controls`**: List all controls (buttons, sliders, etc.) in a document
+- **`coda_get_control`**: Get detailed information about a specific control
+- **`coda_push_button`**: Push a button control in a table row
+
+### User Operations
+- **`coda_whoami`**: Get information about the current authenticated user
+
+**Note**: This MCP server provides comprehensive CRUD operations for existing Coda elements but cannot create new tables or other canvas elements due to Coda API limitations. Total: **34 tools** available.
 
 ## Usage
 
