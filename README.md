@@ -78,7 +78,7 @@ Add the MCP server to Cursor/Claude Desktop/etc. like so:
 
 Required environment variables:
 
-- `API_KEY`: Your Coda API key. You can generate one from your Coda account settings.
+- `API_KEY`: Your Coda API key. You can generate one from your Coda account settings at https://coda.io/account
 
 This MCP server is also available with Docker:
 
@@ -125,3 +125,75 @@ This MCP server is also available with Docker:
 ## Running the Server
 
 The MCP server communicates over standard input/output (stdio). To run it, set the environment variables and run the compiled JavaScript file - `dist/index.js`.
+
+## Development
+
+### Building and Testing Locally
+
+1. **Build the project:**
+   ```bash
+   pnpm build
+   ```
+
+2. **Test locally:**
+   ```bash
+   API_KEY=your-api-key node dist/index.js
+   ```
+
+### Docker Development Workflow
+
+When making changes to the codebase that need to be deployed via Docker:
+
+1. **Build the project:**
+   ```bash
+   pnpm build
+   ```
+
+2. **Build the Docker image:**
+   ```bash
+   docker build -t dustingood/coda-mcp:latest .
+   ```
+
+3. **Test the Docker image:**
+   ```bash
+   docker run -i --rm -e API_KEY=your-api-key dustingood/coda-mcp:latest
+   ```
+
+4. **Push to Docker Hub:**
+   ```bash
+   docker push dustingood/coda-mcp:latest
+   ```
+
+### Configuration Examples
+
+**For npm/npx usage:**
+```json
+{
+  "mcpServers": {
+    "coda": {
+      "command": "npx",
+      "args": ["-y", "coda-mcp@latest"],
+      "env": {
+        "API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+**For Docker usage:**
+```json
+{
+  "mcpServers": {
+    "coda": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "API_KEY", "dustingood/coda-mcp:latest"],
+      "env": {
+        "API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+**Note:** Replace `your-api-key-here` with your actual Coda API key from https://coda.io/account
