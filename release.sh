@@ -17,6 +17,13 @@ fi
 # Update package.json version
 pnpm dlx json -I -f package.json -e "this.version='$VERSION'"
 
+# Ensure the build artifacts are up to date before committing
+echo "Running build..."
+pnpm build || exit 1
+
+echo "Running tests..."
+pnpm test || exit 1
+
 # Commit the change
 git add package.json
 git commit -m "chore: bump version to $VERSION"
