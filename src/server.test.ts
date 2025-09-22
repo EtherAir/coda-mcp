@@ -43,6 +43,7 @@ const expectedToolNames = [
   "coda_get_control",
   "coda_push_button",
   "coda_whoami",
+  "coda_resolve_link",
   "coda_search_tables",
   "coda_search_pages",
   "coda_bulk_update_rows",
@@ -762,6 +763,55 @@ describe("coda_rename_page", () => {
     });
     expect(result.content).toEqual([
       { type: "text", text: "Failed to rename page : Rename failed" },
+    ]);
+  });
+});
+
+describe("coda_resolve_link", () => {
+  it("should resolve a browser link successfully", async () => {
+    vi.mocked(sdk.resolveBrowserLink).mockResolvedValue({
+      data: {
+        resource: {
+          type: "table",
+          id: "tbl-789",
+          browserLink: "https://coda.io/d/doc-123/Test-Table_ttable789",
+        },
+      },
+    } as any);
+
+    const client = await connect(mcpServer.server);
+    const result = await client.callTool("coda_resolve_link", {
+      url: "https://coda.io/d/doc-123/Test-Table_ttable789",
+    });
+
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text: prettyJson({
+          resource: {
+            type: "table",
+            id: "tbl-789",
+            browserLink: "https://coda.io/d/doc-123/Test-Table_ttable789",
+          },
+        }),
+      },
+    ]);
+    expect(sdk.resolveBrowserLink).toHaveBeenCalledWith({
+      query: { url: "https://coda.io/d/doc-123/Test-Table_ttable789" },
+      throwOnError: true,
+    });
+  });
+
+  it("should show error if resolve link throws", async () => {
+    vi.mocked(sdk.resolveBrowserLink).mockRejectedValue(new Error("Resource not found"));
+
+    const client = await connect(mcpServer.server);
+    const result = await client.callTool("coda_resolve_link", {
+      url: "https://coda.io/d/nonexistent-doc-456",
+    });
+
+    expect(result.content).toEqual([
+      { type: "text", text: "Failed to resolve link : Resource not found" },
     ]);
   });
 });
