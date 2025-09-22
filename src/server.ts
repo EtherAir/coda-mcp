@@ -31,6 +31,40 @@ import {
   deletePage
 } from "./client/sdk.gen";
 
+const PAGE_FETCH_LIMIT = 100;
+const MAX_PAGINATION_PAGES = 50;
+
+const omitUndefined = <T extends Record<string, unknown>>(obj: T): Partial<T> =>
+  Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined)) as Partial<T>;
+
+type PaginatedItems<T> = {
+  items?: T[];
+  nextPageToken?: string | null;
+};
+
+async function collectPaginatedResults<T>(
+  fetchPage: (pageToken?: string) => Promise<PaginatedItems<T>>,
+  options?: { maxPages?: number },
+): Promise<T[]> {
+  const { maxPages = MAX_PAGINATION_PAGES } = options ?? {};
+  const allItems: T[] = [];
+  let pageToken: string | undefined;
+  let iterations = 0;
+
+  do {
+    const { items = [], nextPageToken } = await fetchPage(pageToken);
+    allItems.push(...items);
+    pageToken = nextPageToken ?? undefined;
+    iterations += 1;
+
+    if (pageToken && iterations >= maxPages) {
+      throw new Error("Pagination limit exceeded while retrieving data from Coda API");
+    }
+  } while (pageToken);
+
+  return allItems;
+}
+
 export const server = new McpServer({
   name: "coda-enhanced",
   version: packageJson.version,
@@ -52,12 +86,40 @@ server.tool(
     limit: z.number().int().positive().optional().describe("Maximum number of results to return"),
     isOwner: z.boolean().optional().describe("Show only docs owned by the user"),
     isPublished: z.boolean().optional().describe("Show only published docs"),
+    pageToken: z.string().optional().describe("Token used to fetch the next page of results"),
+    workspaceId: z.string().optional().describe("Filter docs to a specific workspace ID"),
+    folderId: z.string().optional().describe("Filter docs to a specific folder ID"),
+    sourceDoc: z.string().optional().describe("Show docs copied from the specified doc ID"),
+    isStarred: z.boolean().optional().describe("Show only docs that are starred"),
+    inGallery: z.boolean().optional().describe("Show only docs that appear in the gallery"),
   },
-  async ({ query, limit, isOwner, isPublished }): Promise<CallToolResult> => {
+  async ({
+    query,
+    limit,
+    isOwner,
+    isPublished,
+    pageToken,
+    workspaceId,
+    folderId,
+    sourceDoc,
+    isStarred,
+    inGallery,
+  }): Promise<CallToolResult> => {
     try {
-      const resp = await listDocs({ 
-        query: { query, limit, isOwner, isPublished }, 
-        throwOnError: true 
+      const resp = await listDocs({
+        query: omitUndefined({
+          query,
+          limit,
+          isOwner,
+          isPublished,
+          pageToken,
+          workspaceId,
+          folderId,
+          sourceDoc,
+          isStarred,
+          inGallery,
+        }),
+        throwOnError: true,
       });
 
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
@@ -90,12 +152,13 @@ server.tool(
     title: z.string().describe("Title of the new document"),
     sourceDoc: z.string().optional().describe("Optional doc ID to copy from"),
     folderId: z.string().optional().describe("Optional folder ID to create the doc in"),
+    timezone: z.string().optional().describe("Optional timezone to apply to the new document"),
   },
-  async ({ title, sourceDoc, folderId }): Promise<CallToolResult> => {
+  async ({ title, sourceDoc, folderId, timezone }): Promise<CallToolResult> => {
     try {
       const resp = await createDoc({
-        body: { title, sourceDoc, folderId },
-        throwOnError: true
+        body: omitUndefined({ title, sourceDoc, folderId, timezone }),
+        throwOnError: true,
       });
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
@@ -114,10 +177,24 @@ server.tool(
   },
   async ({ docId, title, iconName }): Promise<CallToolResult> => {
     try {
+      const body = omitUndefined({ title, iconName });
+
+      if (Object.keys(body).length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "At least one field (title or iconName) must be provided to update the document.",
+            },
+          ],
+          isError: true,
+        };
+      }
+
       const resp = await updateDoc({
         path: { docId },
-        body: { title, iconName },
-        throwOnError: true
+        body,
+        throwOnError: true,
       });
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
@@ -149,7 +226,7 @@ server.tool(
 
       const resp = await listPages({
         path: { docId },
-        query: { limit: listLimit, pageToken: nextPageToken ?? undefined },
+        query: omitUndefined({ limit: listLimit, pageToken: nextPageToken }),
         throwOnError: true,
       });
 
@@ -405,12 +482,14 @@ server.tool(
     docId: z.string().describe("The ID of the document to list tables from"),
     tableTypes: z.array(z.enum(["table", "view"])).optional().describe("Filter by table types"),
     limit: z.number().int().positive().optional().describe("Maximum number of results to return"),
+    pageToken: z.string().optional().describe("Token used to fetch the next page of results"),
+    sortBy: z.enum(["name"]).optional().describe("Sort order for the returned tables"),
   },
-  async ({ docId, tableTypes, limit }): Promise<CallToolResult> => {
+  async ({ docId, tableTypes, limit, pageToken, sortBy }): Promise<CallToolResult> => {
     try {
       const resp = await listTables({
         path: { docId },
-        query: { tableTypes, limit },
+        query: omitUndefined({ tableTypes, limit, pageToken, sortBy }),
         throwOnError: true,
       });
 
@@ -449,19 +528,31 @@ server.tool(
     docId: z.string().describe("The ID of the document containing the table"),
     tableIdOrName: z.string().describe("The ID or name of the table to summarize"),
   },
-  async ({ docId, tableIdOrName }): Promise<CallToolResult> => {
+    async ({ docId, tableIdOrName }): Promise<CallToolResult> => {
     try {
       // Get table info
       const tableResp = await getTable({ path: { docId, tableIdOrName }, throwOnError: true });
-      
+
       // Get columns
-      const columnsResp = await listColumns({ path: { docId, tableIdOrName }, throwOnError: true });
-      
+      const columns = await collectPaginatedResults(async (pageToken) => {
+        const resp = await listColumns({
+          path: { docId, tableIdOrName },
+          query: omitUndefined({ limit: PAGE_FETCH_LIMIT, pageToken }),
+          throwOnError: true,
+        });
+
+        const data = resp.data ?? {};
+        return {
+          items: data.items ?? [],
+          nextPageToken: data.nextPageToken,
+        };
+      });
+
       // Get a sample of rows to understand data types
-      const rowsResp = await listRows({ 
-        path: { docId, tableIdOrName }, 
+      const rowsResp = await listRows({
+        path: { docId, tableIdOrName },
         query: { limit: 5 },
-        throwOnError: true 
+        throwOnError: true
       });
 
       const summary = {
@@ -473,7 +564,7 @@ server.tool(
           createdAt: tableResp.data.createdAt,
           updatedAt: tableResp.data.updatedAt,
         },
-        columns: columnsResp.data.items.map(col => ({
+        columns: columns.map(col => ({
           name: col.name,
           id: col.id,
           type: col.format.type,
@@ -482,9 +573,9 @@ server.tool(
         })),
         sampleData: rowsResp.data.items.slice(0, 3), // First 3 rows as sample
         stats: {
-          totalColumns: columnsResp.data.items.length,
-          calculatedColumns: columnsResp.data.items.filter(c => c.calculated).length,
-          displayColumn: columnsResp.data.items.find(c => c.display)?.name || 'Unknown',
+          totalColumns: columns.length,
+          calculatedColumns: columns.filter(c => c.calculated).length,
+          displayColumn: columns.find(c => c.display)?.name || 'Unknown',
         }
       };
 
@@ -507,12 +598,13 @@ server.tool(
     tableIdOrName: z.string().describe("The ID or name of the table to list columns from"),
     limit: z.number().int().positive().optional().describe("Maximum number of results to return"),
     visibleOnly: z.boolean().optional().describe("If true, returns only visible columns"),
+    pageToken: z.string().optional().describe("Token used to fetch the next page of results"),
   },
-  async ({ docId, tableIdOrName, limit, visibleOnly }): Promise<CallToolResult> => {
+  async ({ docId, tableIdOrName, limit, visibleOnly, pageToken }): Promise<CallToolResult> => {
     try {
       const resp = await listColumns({
         path: { docId, tableIdOrName },
-        query: { limit, visibleOnly },
+        query: omitUndefined({ limit, visibleOnly, pageToken }),
         throwOnError: true,
       });
 
@@ -560,12 +652,35 @@ server.tool(
     sortBy: z.enum(["createdAt", "natural", "updatedAt"]).optional().describe("How to sort the results"),
     useColumnNames: z.boolean().optional().describe("Use column names instead of IDs in output"),
     visibleOnly: z.boolean().optional().describe("Return only visible rows and columns"),
+    valueFormat: z.enum(["simple", "simpleWithArrays", "rich"]).optional().describe("Format for returned cell values"),
+    pageToken: z.string().optional().describe("Token used to fetch the next page of results"),
+    syncToken: z.string().optional().describe("Token returned from a previous call to fetch incremental changes"),
   },
-  async ({ docId, tableIdOrName, query, limit, sortBy, useColumnNames, visibleOnly }): Promise<CallToolResult> => {
+  async ({
+    docId,
+    tableIdOrName,
+    query,
+    limit,
+    sortBy,
+    useColumnNames,
+    visibleOnly,
+    valueFormat,
+    pageToken,
+    syncToken,
+  }): Promise<CallToolResult> => {
     try {
       const resp = await listRows({
         path: { docId, tableIdOrName },
-        query: { query, limit, sortBy, useColumnNames, visibleOnly },
+        query: omitUndefined({
+          query,
+          limit,
+          sortBy,
+          useColumnNames,
+          visibleOnly,
+          valueFormat,
+          pageToken,
+          syncToken,
+        }),
         throwOnError: true,
       });
 
@@ -721,12 +836,13 @@ server.tool(
     docId: z.string().describe("The ID of the document to list formulas from"),
     limit: z.number().int().positive().optional().describe("Maximum number of results to return"),
     sortBy: z.enum(["name"]).optional().describe("How to sort the results"),
+    pageToken: z.string().optional().describe("Token used to fetch the next page of results"),
   },
-  async ({ docId, limit, sortBy }): Promise<CallToolResult> => {
+  async ({ docId, limit, sortBy, pageToken }): Promise<CallToolResult> => {
     try {
       const resp = await listFormulas({
         path: { docId },
-        query: { limit, sortBy },
+        query: omitUndefined({ limit, sortBy, pageToken }),
         throwOnError: true,
       });
 
@@ -769,12 +885,13 @@ server.tool(
     docId: z.string().describe("The ID of the document to list controls from"),
     limit: z.number().int().positive().optional().describe("Maximum number of results to return"),
     sortBy: z.enum(["name"]).optional().describe("How to sort the results"),
+    pageToken: z.string().optional().describe("Token used to fetch the next page of results"),
   },
-  async ({ docId, limit, sortBy }): Promise<CallToolResult> => {
+  async ({ docId, limit, sortBy, pageToken }): Promise<CallToolResult> => {
     try {
       const resp = await listControls({
         path: { docId },
-        query: { limit, sortBy },
+        query: omitUndefined({ limit, sortBy, pageToken }),
         throwOnError: true,
       });
 
@@ -893,20 +1010,26 @@ server.tool(
   },
   async ({ docId, query, tableTypes }): Promise<CallToolResult> => {
     try {
-      // First get all tables
-      const tablesResp = await listTables({
-        path: { docId },
-        query: { tableTypes },
-        throwOnError: true,
+      const tables = await collectPaginatedResults(async (pageToken) => {
+        const resp = await listTables({
+          path: { docId },
+          query: omitUndefined({ tableTypes, pageToken, limit: PAGE_FETCH_LIMIT }),
+          throwOnError: true,
+        });
+
+        const data = resp.data ?? {};
+        return {
+          items: data.items ?? [],
+          nextPageToken: data.nextPageToken,
+        };
       });
 
-      // Filter tables by name matching the query
-      const filteredTables = tablesResp.data.items.filter(table => 
+      const filteredTables = tables.filter(table =>
         table.name.toLowerCase().includes(query.toLowerCase())
       );
 
-      return { 
-        content: [{ 
+      return {
+        content: [{
           type: "text", 
           text: JSON.stringify({ 
             items: filteredTables,
@@ -931,20 +1054,28 @@ server.tool(
   },
   async ({ docId, query, includeContent = false }): Promise<CallToolResult> => {
     try {
-      // Get all pages
-      const pagesResp = await listPages({
-        path: { docId },
-        throwOnError: true,
+      const pages = await collectPaginatedResults(async (pageToken) => {
+        const resp = await listPages({
+          path: { docId },
+          query: omitUndefined({ pageToken, limit: PAGE_FETCH_LIMIT }),
+          throwOnError: true,
+        });
+
+        const data = resp.data ?? {};
+        return {
+          items: data.items ?? [],
+          nextPageToken: data.nextPageToken,
+        };
       });
 
-      let filteredPages = pagesResp.data.items.filter(page => 
+      let filteredPages = pages.filter(page =>
         page.name.toLowerCase().includes(query.toLowerCase())
       );
 
       // If includeContent is true, also search page content
       if (includeContent) {
         const contentMatches = [];
-        for (const page of pagesResp.data.items) {
+        for (const page of pages) {
           try {
             const content = await getPageContent(docId, page.id);
             if (content && content.toLowerCase().includes(query.toLowerCase())) {
@@ -1056,18 +1187,61 @@ server.tool(
     try {
       // Get document info
       const docResp = await getDoc({ path: { docId }, throwOnError: true });
-      
-      // Get pages count
-      const pagesResp = await listPages({ path: { docId }, throwOnError: true });
-      
-      // Get tables count
-      const tablesResp = await listTables({ path: { docId }, throwOnError: true });
-      
-      // Get formulas count
-      const formulasResp = await listFormulas({ path: { docId }, throwOnError: true });
-      
-      // Get controls count
-      const controlsResp = await listControls({ path: { docId }, throwOnError: true });
+
+      const [pages, tables, formulas, controls] = await Promise.all([
+        collectPaginatedResults(async (pageToken) => {
+          const resp = await listPages({
+            path: { docId },
+            query: omitUndefined({ pageToken, limit: PAGE_FETCH_LIMIT }),
+            throwOnError: true,
+          });
+
+          const data = resp.data ?? {};
+          return {
+            items: data.items ?? [],
+            nextPageToken: data.nextPageToken,
+          };
+        }),
+        collectPaginatedResults(async (pageToken) => {
+          const resp = await listTables({
+            path: { docId },
+            query: omitUndefined({ pageToken, limit: PAGE_FETCH_LIMIT }),
+            throwOnError: true,
+          });
+
+          const data = resp.data ?? {};
+          return {
+            items: data.items ?? [],
+            nextPageToken: data.nextPageToken,
+          };
+        }),
+        collectPaginatedResults(async (pageToken) => {
+          const resp = await listFormulas({
+            path: { docId },
+            query: omitUndefined({ pageToken, limit: PAGE_FETCH_LIMIT }),
+            throwOnError: true,
+          });
+
+          const data = resp.data ?? {};
+          return {
+            items: data.items ?? [],
+            nextPageToken: data.nextPageToken,
+          };
+        }),
+        collectPaginatedResults(async (pageToken) => {
+          const resp = await listControls({
+            path: { docId },
+            query: omitUndefined({ pageToken, limit: PAGE_FETCH_LIMIT }),
+            throwOnError: true,
+          });
+
+          const data = resp.data ?? {};
+          return {
+            items: data.items ?? [],
+            nextPageToken: data.nextPageToken,
+          };
+        }),
+      ]);
 
       const stats = {
         document: {
@@ -1079,16 +1253,16 @@ server.tool(
           docSize: docResp.data.docSize,
         },
         counts: {
-          pages: pagesResp.data.items.length,
-          tables: tablesResp.data.items.filter(t => t.tableType === 'table').length,
-          views: tablesResp.data.items.filter(t => t.tableType === 'view').length,
-          formulas: formulasResp.data.items.length,
-          controls: controlsResp.data.items.length,
+          pages: pages.length,
+          tables: tables.filter(t => t.tableType === 'table').length,
+          views: tables.filter(t => t.tableType === 'view').length,
+          formulas: formulas.length,
+          controls: controls.length,
         },
         breakdown: {
-          tableNames: tablesResp.data.items.map(t => ({ name: t.name, type: t.tableType })),
-          pageNames: pagesResp.data.items.slice(0, 10).map(p => p.name), // First 10 pages
-          formulaNames: formulasResp.data.items.slice(0, 10).map(f => f.name), // First 10 formulas
+          tableNames: tables.map(t => ({ name: t.name, type: t.tableType })),
+          pageNames: pages.slice(0, 10).map(p => p.name), // First 10 pages
+          formulaNames: formulas.slice(0, 10).map(f => f.name), // First 10 formulas
         }
       };
 

@@ -224,7 +224,7 @@ describe("coda_list_pages", () => {
     ]);
     expect(sdk.listPages).toHaveBeenCalledWith({
       path: { docId: "doc-123" },
-      query: { limit: undefined, pageToken: undefined },
+      query: {},
       throwOnError: true,
     });
   });
@@ -258,7 +258,7 @@ describe("coda_list_pages", () => {
     ]);
     expect(sdk.listPages).toHaveBeenCalledWith({
       path: { docId: "doc-123" },
-      query: { limit: 10, pageToken: undefined },
+      query: { limit: 10 },
       throwOnError: true,
     });
   });
@@ -293,7 +293,7 @@ describe("coda_list_pages", () => {
     ]);
     expect(sdk.listPages).toHaveBeenCalledWith({
       path: { docId: "doc-123" },
-      query: { limit: undefined, pageToken: "token-123" },
+      query: { pageToken: "token-123" },
       throwOnError: true,
     });
   });
@@ -324,7 +324,7 @@ describe("coda_list_pages", () => {
     // When nextPageToken is provided, limit should be undefined
     expect(sdk.listPages).toHaveBeenCalledWith({
       path: { docId: "doc-123" },
-      query: { limit: undefined, pageToken: "token-123" },
+      query: { pageToken: "token-123" },
       throwOnError: true,
     });
   });
@@ -863,6 +863,203 @@ describe("coda_resolve_link", () => {
     expect(result.content).toEqual([
       { type: "text", text: "Failed to resolve link : Resource not found" },
     ]);
+  });
+});
+
+describe("coda_search_tables", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should search across paginated tables", async () => {
+    vi
+      .mocked(sdk.listTables)
+      .mockResolvedValueOnce({
+        data: {
+          items: [{ id: "tbl-1", name: "Alpha" }],
+          nextPageToken: "token-1",
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        data: {
+          items: [{ id: "tbl-2", name: "Beta" }],
+        },
+      } as any);
+
+    const client = await connect(mcpServer.server);
+    const result = await client.callTool("coda_search_tables", {
+      docId: "doc-123",
+      query: "beta",
+    });
+
+    const first = (result.content ?? []) as any[];
+    const payload = JSON.parse((first[0] as any)?.text ?? "{}");
+    expect(payload.items).toEqual([{ id: "tbl-2", name: "Beta" }]);
+    expect(payload.totalFound).toBe(1);
+
+    expect(sdk.listTables).toHaveBeenCalledTimes(2);
+    expect(sdk.listTables).toHaveBeenNthCalledWith(1, {
+      path: { docId: "doc-123" },
+      query: { limit: 100 },
+      throwOnError: true,
+    });
+    expect(sdk.listTables).toHaveBeenNthCalledWith(2, {
+      path: { docId: "doc-123" },
+      query: { limit: 100, pageToken: "token-1" },
+      throwOnError: true,
+    });
+  });
+});
+
+describe("coda_search_pages", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should search page content across pagination when requested", async () => {
+    vi
+      .mocked(sdk.listPages)
+      .mockResolvedValueOnce({
+        data: {
+          items: [{ id: "page-1", name: "Overview" }],
+          nextPageToken: "token-1",
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        data: {
+          items: [{ id: "page-2", name: "Notes" }],
+        },
+      } as any);
+
+    vi
+      .mocked(helpers.getPageContent)
+      .mockResolvedValueOnce("No relevant text here")
+      .mockResolvedValueOnce("This section mentions Delta explicitly.");
+
+    const client = await connect(mcpServer.server);
+    const result = await client.callTool("coda_search_pages", {
+      docId: "doc-123",
+      query: "delta",
+      includeContent: true,
+    });
+
+    const first = (result.content ?? []) as any[];
+    const payload = JSON.parse((first[0] as any)?.text ?? "{}");
+    expect(payload.items).toEqual([
+      { id: "page-2", name: "Notes", matchedInContent: true },
+    ]);
+    expect(payload.totalFound).toBe(1);
+
+    expect(sdk.listPages).toHaveBeenCalledTimes(2);
+    expect(sdk.listPages).toHaveBeenNthCalledWith(1, {
+      path: { docId: "doc-123" },
+      query: { limit: 100 },
+      throwOnError: true,
+    });
+    expect(sdk.listPages).toHaveBeenNthCalledWith(2, {
+      path: { docId: "doc-123" },
+      query: { limit: 100, pageToken: "token-1" },
+      throwOnError: true,
+    });
+    expect(helpers.getPageContent).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("coda_get_document_stats", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should aggregate counts across paginated resources", async () => {
+    vi.mocked(sdk.getDoc).mockResolvedValue({
+      data: {
+        id: "doc-123",
+        name: "Test Doc",
+        owner: "user@example.com",
+        createdAt: "2024-01-01T00:00:00Z",
+        updatedAt: "2024-01-02T00:00:00Z",
+        docSize: {
+          totalRowCount: 10,
+          tableAndViewCount: 2,
+          pageCount: 3,
+          overApiSizeLimit: false,
+        },
+      },
+    } as any);
+
+    vi
+      .mocked(sdk.listPages)
+      .mockResolvedValueOnce({
+        data: {
+          items: [{ id: "page-1", name: "Overview" }],
+          nextPageToken: "token-1",
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        data: {
+          items: [{ id: "page-2", name: "Details" }],
+        },
+      } as any);
+
+    vi
+      .mocked(sdk.listTables)
+      .mockResolvedValueOnce({
+        data: {
+          items: [{ id: "tbl-1", name: "Main", tableType: "table" }],
+          nextPageToken: "token-1",
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        data: {
+          items: [{ id: "tbl-2", name: "Summary", tableType: "view" }],
+        },
+      } as any);
+
+    vi.mocked(sdk.listFormulas).mockResolvedValue({
+      data: {
+        items: [{ id: "formula-1", name: "Total" }],
+      },
+    } as any);
+
+    vi.mocked(sdk.listControls).mockResolvedValue({
+      data: {
+        items: [{ id: "control-1", name: "Toggle" }],
+      },
+    } as any);
+
+    const client = await connect(mcpServer.server);
+    const result = await client.callTool("coda_get_document_stats", { docId: "doc-123" });
+
+    const first = (result.content ?? []) as any[];
+    const payload = JSON.parse((first[0] as any)?.text ?? "{}");
+    expect(payload.counts).toEqual({
+      pages: 2,
+      tables: 1,
+      views: 1,
+      formulas: 1,
+      controls: 1,
+    });
+    expect(payload.breakdown.pageNames).toEqual(["Overview", "Details"]);
+    expect(payload.breakdown.tableNames).toEqual([
+      { name: "Main", type: "table" },
+      { name: "Summary", type: "view" },
+    ]);
+
+    expect(sdk.listPages).toHaveBeenNthCalledWith(1, {
+      path: { docId: "doc-123" },
+      query: { limit: 100 },
+      throwOnError: true,
+    });
+    expect(sdk.listPages).toHaveBeenNthCalledWith(2, {
+      path: { docId: "doc-123" },
+      query: { limit: 100, pageToken: "token-1" },
+      throwOnError: true,
+    });
+    expect(sdk.listTables).toHaveBeenNthCalledWith(2, {
+      path: { docId: "doc-123" },
+      query: { limit: 100, pageToken: "token-1" },
+      throwOnError: true,
+    });
   });
 });
 

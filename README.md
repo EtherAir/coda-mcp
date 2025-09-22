@@ -56,7 +56,7 @@ The server exposes the following tools to the MCP client:
 ### User Operations
 - **`coda_whoami`**: Get information about the current authenticated user
 
-**Note**: This MCP server provides comprehensive CRUD operations for existing Coda elements but cannot create new tables or other canvas elements due to Coda API limitations. Total: **34 tools** available.
+**Note**: This MCP server provides comprehensive CRUD operations for existing Coda elements but cannot create new tables or other canvas elements due to Coda API limitations. Total: **35 tools** available.
 
 ## Usage
 
