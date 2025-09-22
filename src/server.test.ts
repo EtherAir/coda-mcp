@@ -1,5 +1,9 @@
+import { promises as fs } from "node:fs";
+import { join } from "node:path";
 import { close, connect } from "mcp-testing-kit";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import * as helpers from "./client/helpers";
 import * as sdk from "./client/sdk.gen";
 import { server as mcpServer } from "./server";
@@ -7,6 +11,63 @@ import { server as mcpServer } from "./server";
 vi.mock("./client/sdk.gen");
 vi.mock("./client/helpers");
 vi.mock("axios");
+
+const expectedToolNames = [
+  "coda_list_documents",
+  "coda_get_document",
+  "coda_create_document",
+  "coda_update_document",
+  "coda_list_pages",
+  "coda_create_page",
+  "coda_delete_page",
+  "coda_get_page_content",
+  "coda_peek_page",
+  "coda_replace_page_content",
+  "coda_append_page_content",
+  "coda_duplicate_page",
+  "coda_rename_page",
+  "coda_list_tables",
+  "coda_get_table",
+  "coda_get_table_summary",
+  "coda_list_columns",
+  "coda_get_column",
+  "coda_list_rows",
+  "coda_get_row",
+  "coda_create_rows",
+  "coda_update_row",
+  "coda_delete_row",
+  "coda_delete_rows",
+  "coda_list_formulas",
+  "coda_get_formula",
+  "coda_list_controls",
+  "coda_get_control",
+  "coda_push_button",
+  "coda_whoami",
+  "coda_search_tables",
+  "coda_search_pages",
+  "coda_bulk_update_rows",
+  "coda_get_document_stats",
+];
+
+const prettyJson = (value: unknown) => JSON.stringify(value, null, 2);
+
+if (typeof Promise.withResolvers !== "function") {
+  Object.defineProperty(Promise, "withResolvers", {
+    configurable: true,
+    writable: true,
+    value: <T>() => {
+      let resolve!: (value: T | PromiseLike<T>) => void;
+      let reject!: (reason?: unknown) => void;
+
+      const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+
+      return { promise, resolve, reject };
+    },
+  });
+}
 
 describe("MCP Server", () => {
   afterEach(async () => {
@@ -17,17 +78,59 @@ describe("MCP Server", () => {
   it("should have all tools", async () => {
     const client = await connect(mcpServer.server);
     const result = await client.listTools();
-    expect(result.tools).toEqual([
-      expect.objectContaining({ name: "coda_list_documents" }),
-      expect.objectContaining({ name: "coda_list_pages" }),
-      expect.objectContaining({ name: "coda_create_page" }),
-      expect.objectContaining({ name: "coda_get_page_content" }),
-      expect.objectContaining({ name: "coda_peek_page" }),
-      expect.objectContaining({ name: "coda_replace_page_content" }),
-      expect.objectContaining({ name: "coda_append_page_content" }),
-      expect.objectContaining({ name: "coda_duplicate_page" }),
-      expect.objectContaining({ name: "coda_rename_page" }),
-    ]);
+    expect(result.tools).toBeDefined();
+    const toolNames = (result.tools ?? []).map(({ name }) => name);
+
+    expect(toolNames).toEqual(expect.arrayContaining(expectedToolNames));
+    expect(toolNames).toHaveLength(expectedToolNames.length);
+  });
+
+  it("should include all tools in the built artifact", async () => {
+    const distPath = join(__dirname, "..", "dist", "server.js");
+    await expect(fs.access(distPath)).resolves.toBeUndefined();
+
+    const distContents = await fs.readFile(distPath, "utf8");
+    const toolRegistrations = distContents.match(/server\.tool\(/g) ?? [];
+
+    expect(toolRegistrations).toHaveLength(expectedToolNames.length);
+    expectedToolNames.forEach((toolName) => {
+      expect(distContents).toContain(toolName);
+    });
+  });
+});
+
+describe("CLI integration", () => {
+  afterEach(async () => {
+    vi.clearAllMocks();
+  });
+
+  it("should expose all tools when running the packaged server", async () => {
+    const env: Record<string, string> = {
+      ...process.env,
+      API_KEY: process.env.API_KEY ?? "test-api-key",
+    } as Record<string, string>;
+
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [join(__dirname, "..", "dist", "index.js")],
+      env,
+      cwd: join(__dirname, ".."),
+    });
+
+    const client = new Client({ name: "cli-integration-test", version: "0.0.0" });
+
+    try {
+      await client.connect(transport);
+
+      const result = await client.listTools();
+      const toolNames = (result.tools ?? []).map(({ name }) => name);
+
+      expect(toolNames).toEqual(expect.arrayContaining(expectedToolNames));
+      expect(toolNames).toHaveLength(expectedToolNames.length);
+    } finally {
+      await client.close();
+      await transport.close();
+    }
   });
 });
 
@@ -47,7 +150,7 @@ describe("coda_list_documents", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({
+        text: prettyJson({
           items: [
             { id: "123", name: "Test Document" },
             { id: "456", name: "Another Document" },
@@ -69,7 +172,7 @@ describe("coda_list_documents", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({
+        text: prettyJson({
           items: [{ id: "123", name: "Test Document" }],
         }),
       },
@@ -81,7 +184,7 @@ describe("coda_list_documents", () => {
 
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_list_documents", { query: "test" });
-    expect(result.content).toEqual([{ type: "text", text: "Failed to list documents: Error: foo" }]);
+    expect(result.content).toEqual([{ type: "text", text: "Failed to list documents : foo" }]);
   });
 });
 
@@ -101,7 +204,7 @@ describe("coda_list_pages", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({
+        text: prettyJson({
           items: [
             { id: "page-123", name: "Test Page 1" },
             { id: "page-456", name: "Test Page 2" },
@@ -132,7 +235,7 @@ describe("coda_list_pages", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({
+        text: prettyJson({
           items: [
             { id: "page-123", name: "Test Page 1" },
             { id: "page-456", name: "Test Page 2" },
@@ -166,7 +269,7 @@ describe("coda_list_pages", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({
+        text: prettyJson({
           items: [
             { id: "page-789", name: "Test Page 3" },
             { id: "page-101", name: "Test Page 4" },
@@ -197,7 +300,7 @@ describe("coda_list_pages", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({
+        text: prettyJson({
           items: [{ id: "page-789", name: "Test Page 3" }],
         }),
       },
@@ -215,7 +318,7 @@ describe("coda_list_pages", () => {
 
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_list_pages", { docId: "doc-123" });
-    expect(result.content).toEqual([{ type: "text", text: "Failed to list pages: Error: Access denied" }]);
+    expect(result.content).toEqual([{ type: "text", text: "Failed to list pages : Access denied" }]);
   });
 });
 
@@ -237,7 +340,7 @@ describe("coda_create_page", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({
+        text: prettyJson({
           id: "page-new",
           requestId: "req-123",
         }),
@@ -247,6 +350,9 @@ describe("coda_create_page", () => {
       path: { docId: "doc-123" },
       body: {
         name: "New Page",
+        subtitle: undefined,
+        iconName: undefined,
+        parentPageId: undefined,
         pageContent: {
           type: "canvas",
           canvasContent: { format: "markdown", content: "# Hello World" },
@@ -273,6 +379,9 @@ describe("coda_create_page", () => {
       path: { docId: "doc-123" },
       body: {
         name: "Empty Page",
+        subtitle: undefined,
+        iconName: undefined,
+        parentPageId: undefined,
         pageContent: {
           type: "canvas",
           canvasContent: { format: "markdown", content: " " },
@@ -300,13 +409,15 @@ describe("coda_create_page", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({ id: "page-sub", requestId: "req-125" }),
+        text: prettyJson({ id: "page-sub", requestId: "req-125" }),
       },
     ]);
     expect(sdk.createPage).toHaveBeenCalledWith({
       path: { docId: "doc-123" },
       body: {
         name: "Subpage",
+        subtitle: undefined,
+        iconName: undefined,
         parentPageId: "page-456",
         pageContent: {
           type: "canvas",
@@ -325,7 +436,9 @@ describe("coda_create_page", () => {
       docId: "doc-123",
       name: "New Page",
     });
-    expect(result.content).toEqual([{ type: "text", text: "Failed to create page: Error: Insufficient permissions" }]);
+    expect(result.content).toEqual([
+      { type: "text", text: "Failed to create page : Insufficient permissions" },
+    ]);
   });
 });
 
@@ -372,7 +485,7 @@ describe("coda_get_page_content", () => {
       pageIdOrName: "page-456",
     });
     expect(result.content).toEqual([
-      { type: "text", text: "Failed to get page content: Error: Unknown error has occurred" },
+      { type: "text", text: "Failed to get page content : Unknown error has occurred" },
     ]);
   });
 
@@ -384,7 +497,7 @@ describe("coda_get_page_content", () => {
       docId: "doc-123",
       pageIdOrName: "page-456",
     });
-    expect(result.content).toEqual([{ type: "text", text: "Failed to get page content: Error: Export failed" }]);
+    expect(result.content).toEqual([{ type: "text", text: "Failed to get page content : Export failed" }]);
   });
 });
 
@@ -416,7 +529,9 @@ describe("coda_peek_page", () => {
       pageIdOrName: "page-456",
       numLines: 1,
     });
-    expect(result.content).toEqual([{ type: "text", text: "Failed to peek page: Error: Unknown error has occurred" }]);
+    expect(result.content).toEqual([
+      { type: "text", text: "Failed to peek page : Unknown error has occurred" },
+    ]);
   });
 
   it("should show error if getPageContent throws", async () => {
@@ -428,7 +543,7 @@ describe("coda_peek_page", () => {
       pageIdOrName: "page-456",
       numLines: 3,
     });
-    expect(result.content).toEqual([{ type: "text", text: "Failed to peek page: Error: Export failed" }]);
+    expect(result.content).toEqual([{ type: "text", text: "Failed to peek page : Export failed" }]);
   });
 });
 
@@ -450,7 +565,7 @@ describe("coda_replace_page_content", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({
+        text: prettyJson({
           id: "page-456",
           requestId: "req-125",
         }),
@@ -477,7 +592,9 @@ describe("coda_replace_page_content", () => {
       pageIdOrName: "page-456",
       content: "# New Content",
     });
-    expect(result.content).toEqual([{ type: "text", text: "Failed to replace page content: Error: Update failed" }]);
+    expect(result.content).toEqual([
+      { type: "text", text: "Failed to replace page content : Update failed" },
+    ]);
   });
 });
 
@@ -499,7 +616,7 @@ describe("coda_append_page_content", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({
+        text: prettyJson({
           id: "page-456",
           requestId: "req-126",
         }),
@@ -526,7 +643,9 @@ describe("coda_append_page_content", () => {
       pageIdOrName: "page-456",
       content: "Additional content",
     });
-    expect(result.content).toEqual([{ type: "text", text: "Failed to append page content: Error: Append failed" }]);
+    expect(result.content).toEqual([
+      { type: "text", text: "Failed to append page content : Append failed" },
+    ]);
   });
 });
 
@@ -549,7 +668,7 @@ describe("coda_duplicate_page", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({
+        text: prettyJson({
           id: "page-duplicate",
           requestId: "req-127",
         }),
@@ -578,7 +697,9 @@ describe("coda_duplicate_page", () => {
       pageIdOrName: "page-456",
       newName: "Duplicated Page",
     });
-    expect(result.content).toEqual([{ type: "text", text: "Failed to duplicate page: Error: Content fetch failed" }]);
+    expect(result.content).toEqual([
+      { type: "text", text: "Failed to duplicate page : Content fetch failed" },
+    ]);
   });
 
   it("should show error if createPage fails during duplication", async () => {
@@ -591,7 +712,9 @@ describe("coda_duplicate_page", () => {
       pageIdOrName: "page-456",
       newName: "Duplicated Page",
     });
-    expect(result.content).toEqual([{ type: "text", text: "Failed to duplicate page: Error: Create failed" }]);
+    expect(result.content).toEqual([
+      { type: "text", text: "Failed to duplicate page : Create failed" },
+    ]);
   });
 });
 
@@ -613,7 +736,7 @@ describe("coda_rename_page", () => {
     expect(result.content).toEqual([
       {
         type: "text",
-        text: JSON.stringify({
+        text: prettyJson({
           id: "page-456",
           requestId: "req-128",
         }),
@@ -637,6 +760,8 @@ describe("coda_rename_page", () => {
       pageIdOrName: "page-456",
       newName: "Renamed Page",
     });
-    expect(result.content).toEqual([{ type: "text", text: "Failed to rename page: Error: Rename failed" }]);
+    expect(result.content).toEqual([
+      { type: "text", text: "Failed to rename page : Rename failed" },
+    ]);
   });
 });
