@@ -2,6 +2,8 @@ import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import { close, connect } from "mcp-testing-kit";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import * as helpers from "./client/helpers";
 import * as sdk from "./client/sdk.gen";
 import { server as mcpServer } from "./server";
@@ -41,6 +43,8 @@ const expectedToolNames = [
   "coda_get_control",
   "coda_push_button",
   "coda_whoami",
+
+  "coda_resolve_link",
   "coda_search_tables",
   "coda_search_pages",
   "coda_bulk_update_rows",
@@ -97,6 +101,42 @@ describe("MCP Server", () => {
   });
 });
 
+
+describe("CLI integration", () => {
+  afterEach(async () => {
+    vi.clearAllMocks();
+  });
+
+  it("should expose all tools when running the packaged server", async () => {
+    const env: Record<string, string> = {
+      ...process.env,
+      API_KEY: process.env.API_KEY ?? "test-api-key",
+    } as Record<string, string>;
+
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [join(__dirname, "..", "dist", "index.js")],
+      env,
+      cwd: join(__dirname, ".."),
+    });
+
+    const client = new Client({ name: "cli-integration-test", version: "0.0.0" });
+
+    try {
+      await client.connect(transport);
+
+      const result = await client.listTools();
+      const toolNames = (result.tools ?? []).map(({ name }) => name);
+
+      expect(toolNames).toEqual(expect.arrayContaining(expectedToolNames));
+      expect(toolNames).toHaveLength(expectedToolNames.length);
+    } finally {
+      await client.close();
+      await transport.close();
+    }
+  });
+});
+
 describe("coda_list_documents", () => {
   it("should list documents without query", async () => {
     vi.mocked(sdk.listDocs).mockResolvedValue({
@@ -119,6 +159,7 @@ describe("coda_list_documents", () => {
             { id: "456", name: "Another Document" },
           ],
         }),
+
       },
     ]);
   });
@@ -129,6 +170,7 @@ describe("coda_list_documents", () => {
         items: [{ id: "123", name: "Test Document" }],
       },
     } as any);
+
 
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_list_documents", { query: "test" });
@@ -142,14 +184,17 @@ describe("coda_list_documents", () => {
     ]);
   });
 
+
   it("should show error if list documents throws", async () => {
     vi.mocked(sdk.listDocs).mockRejectedValue(new Error("foo"));
+
 
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_list_documents", { query: "test" });
     expect(result.content).toEqual([{ type: "text", text: "Failed to list documents : foo" }]);
   });
 });
+
 
 describe("coda_list_pages", () => {
   it("should list pages successfully without limit or nextPageToken", async () => {
@@ -162,6 +207,7 @@ describe("coda_list_pages", () => {
       },
     } as any);
 
+
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_list_pages", { docId: "doc-123" });
     expect(result.content).toEqual([
@@ -173,6 +219,7 @@ describe("coda_list_pages", () => {
             { id: "page-456", name: "Test Page 2" },
           ],
         }),
+
       },
     ]);
     expect(sdk.listPages).toHaveBeenCalledWith({
@@ -193,6 +240,7 @@ describe("coda_list_pages", () => {
       },
     } as any);
 
+
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_list_pages", { docId: "doc-123", limit: 10 });
     expect(result.content).toEqual([
@@ -204,6 +252,7 @@ describe("coda_list_pages", () => {
             { id: "page-456", name: "Test Page 2" },
           ],
           nextPageToken: "token-123",
+
         }),
       },
     ]);
@@ -224,6 +273,7 @@ describe("coda_list_pages", () => {
       },
     } as any);
 
+
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_list_pages", {
       docId: "doc-123",
@@ -238,6 +288,7 @@ describe("coda_list_pages", () => {
             { id: "page-101", name: "Test Page 4" },
           ],
         }),
+
       },
     ]);
     expect(sdk.listPages).toHaveBeenCalledWith({
@@ -254,6 +305,7 @@ describe("coda_list_pages", () => {
       },
     } as any);
 
+
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_list_pages", {
       docId: "doc-123",
@@ -268,6 +320,7 @@ describe("coda_list_pages", () => {
         }),
       },
     ]);
+
     // When nextPageToken is provided, limit should be undefined
     expect(sdk.listPages).toHaveBeenCalledWith({
       path: { docId: "doc-123" },
@@ -277,6 +330,7 @@ describe("coda_list_pages", () => {
   });
 
   it("should show error if list pages throws", async () => {
+
     vi.mocked(sdk.listPages).mockRejectedValue(new Error("Access denied"));
 
     const client = await connect(mcpServer.server);
@@ -284,6 +338,7 @@ describe("coda_list_pages", () => {
     expect(result.content).toEqual([{ type: "text", text: "Failed to list pages : Access denied" }]);
   });
 });
+
 
 describe("coda_create_page", () => {
   it("should create page with content", async () => {
@@ -295,6 +350,7 @@ describe("coda_create_page", () => {
     } as any);
 
     const client = await connect(mcpServer.server);
+
     const result = await client.callTool("coda_create_page", {
       docId: "doc-123",
       name: "New Page",
@@ -326,6 +382,7 @@ describe("coda_create_page", () => {
   });
 
   it("should create page without content", async () => {
+
     vi.mocked(sdk.createPage).mockResolvedValue({
       data: {
         id: "page-new",
@@ -334,6 +391,7 @@ describe("coda_create_page", () => {
     } as any);
 
     const client = await connect(mcpServer.server);
+
     await client.callTool("coda_create_page", {
       docId: "doc-123",
       name: "Empty Page",
@@ -355,6 +413,7 @@ describe("coda_create_page", () => {
   });
 
   it("should create page with parent page id and content", async () => {
+
     vi.mocked(sdk.createPage).mockResolvedValue({
       data: {
         id: "page-sub",
@@ -366,6 +425,7 @@ describe("coda_create_page", () => {
     const result = await client.callTool("coda_create_page", {
       docId: "doc-123",
       name: "Subpage",
+
       parentPageId: "page-456",
       content: "## Subheading",
     });
@@ -392,10 +452,12 @@ describe("coda_create_page", () => {
   });
 
   it("should show error if create page throws", async () => {
+
     vi.mocked(sdk.createPage).mockRejectedValue(new Error("Insufficient permissions"));
 
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_create_page", {
+
       docId: "doc-123",
       name: "New Page",
     });
@@ -404,6 +466,7 @@ describe("coda_create_page", () => {
     ]);
   });
 });
+
 
 describe("coda_get_page_content", () => {
   it("should get page content successfully", async () => {
@@ -443,6 +506,7 @@ describe("coda_get_page_content", () => {
     vi.mocked(helpers.getPageContent).mockResolvedValue(undefined as any);
 
     const client = await connect(mcpServer.server);
+
     const result = await client.callTool("coda_get_page_content", {
       docId: "doc-123",
       pageIdOrName: "page-456",
@@ -455,14 +519,17 @@ describe("coda_get_page_content", () => {
   it("should show error if getPageContent throws", async () => {
     vi.mocked(helpers.getPageContent).mockRejectedValue(new Error("Export failed"));
 
+
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_get_page_content", {
+
       docId: "doc-123",
       pageIdOrName: "page-456",
     });
     expect(result.content).toEqual([{ type: "text", text: "Failed to get page content : Export failed" }]);
   });
 });
+
 
 describe("coda_peek_page", () => {
   it("should peek page content successfully", async () => {
@@ -487,6 +554,7 @@ describe("coda_peek_page", () => {
     vi.mocked(helpers.getPageContent).mockResolvedValue(undefined as any);
 
     const client = await connect(mcpServer.server);
+
     const result = await client.callTool("coda_peek_page", {
       docId: "doc-123",
       pageIdOrName: "page-456",
@@ -502,6 +570,7 @@ describe("coda_peek_page", () => {
 
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_peek_page", {
+
       docId: "doc-123",
       pageIdOrName: "page-456",
       numLines: 3,
@@ -509,6 +578,7 @@ describe("coda_peek_page", () => {
     expect(result.content).toEqual([{ type: "text", text: "Failed to peek page : Export failed" }]);
   });
 });
+
 
 describe("coda_replace_page_content", () => {
   it("should replace page content successfully", async () => {
@@ -520,6 +590,7 @@ describe("coda_replace_page_content", () => {
     } as any);
 
     const client = await connect(mcpServer.server);
+
     const result = await client.callTool("coda_replace_page_content", {
       docId: "doc-123",
       pageIdOrName: "page-456",
@@ -534,6 +605,7 @@ describe("coda_replace_page_content", () => {
         }),
       },
     ]);
+
     expect(sdk.updatePage).toHaveBeenCalledWith({
       path: { docId: "doc-123", pageIdOrName: "page-456" },
       body: {
@@ -551,6 +623,7 @@ describe("coda_replace_page_content", () => {
 
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_replace_page_content", {
+
       docId: "doc-123",
       pageIdOrName: "page-456",
       content: "# New Content",
@@ -560,6 +633,7 @@ describe("coda_replace_page_content", () => {
     ]);
   });
 });
+
 
 describe("coda_append_page_content", () => {
   it("should append page content successfully", async () => {
@@ -571,6 +645,7 @@ describe("coda_append_page_content", () => {
     } as any);
 
     const client = await connect(mcpServer.server);
+
     const result = await client.callTool("coda_append_page_content", {
       docId: "doc-123",
       pageIdOrName: "page-456",
@@ -585,6 +660,7 @@ describe("coda_append_page_content", () => {
         }),
       },
     ]);
+
     expect(sdk.updatePage).toHaveBeenCalledWith({
       path: { docId: "doc-123", pageIdOrName: "page-456" },
       body: {
@@ -602,6 +678,7 @@ describe("coda_append_page_content", () => {
 
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_append_page_content", {
+
       docId: "doc-123",
       pageIdOrName: "page-456",
       content: "Additional content",
@@ -611,6 +688,7 @@ describe("coda_append_page_content", () => {
     ]);
   });
 });
+
 
 describe("coda_duplicate_page", () => {
   it("should duplicate page successfully", async () => {
@@ -623,6 +701,7 @@ describe("coda_duplicate_page", () => {
     } as any);
 
     const client = await connect(mcpServer.server);
+
     const result = await client.callTool("coda_duplicate_page", {
       docId: "doc-123",
       pageIdOrName: "page-456",
@@ -637,6 +716,7 @@ describe("coda_duplicate_page", () => {
         }),
       },
     ]);
+
     expect(helpers.getPageContent).toHaveBeenCalledWith("doc-123", "page-456");
     expect(sdk.createPage).toHaveBeenCalledWith({
       path: { docId: "doc-123" },
@@ -657,6 +737,7 @@ describe("coda_duplicate_page", () => {
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_duplicate_page", {
       docId: "doc-123",
+
       pageIdOrName: "page-456",
       newName: "Duplicated Page",
     });
@@ -669,9 +750,11 @@ describe("coda_duplicate_page", () => {
     vi.mocked(helpers.getPageContent).mockResolvedValue("# Original Page");
     vi.mocked(sdk.createPage).mockRejectedValue(new Error("Create failed"));
 
+
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_duplicate_page", {
       docId: "doc-123",
+
       pageIdOrName: "page-456",
       newName: "Duplicated Page",
     });
@@ -680,6 +763,7 @@ describe("coda_duplicate_page", () => {
     ]);
   });
 });
+
 
 describe("coda_rename_page", () => {
   it("should rename page successfully", async () => {
@@ -691,6 +775,7 @@ describe("coda_rename_page", () => {
     } as any);
 
     const client = await connect(mcpServer.server);
+
     const result = await client.callTool("coda_rename_page", {
       docId: "doc-123",
       pageIdOrName: "page-456",
@@ -705,6 +790,7 @@ describe("coda_rename_page", () => {
         }),
       },
     ]);
+
     expect(sdk.updatePage).toHaveBeenCalledWith({
       path: { docId: "doc-123", pageIdOrName: "page-456" },
       body: {
@@ -719,6 +805,7 @@ describe("coda_rename_page", () => {
 
     const client = await connect(mcpServer.server);
     const result = await client.callTool("coda_rename_page", {
+
       docId: "doc-123",
       pageIdOrName: "page-456",
       newName: "Renamed Page",
@@ -728,3 +815,54 @@ describe("coda_rename_page", () => {
     ]);
   });
 });
+
+
+describe("coda_resolve_link", () => {
+  it("should resolve a browser link successfully", async () => {
+    vi.mocked(sdk.resolveBrowserLink).mockResolvedValue({
+      data: {
+        resource: {
+          type: "table",
+          id: "tbl-789",
+          browserLink: "https://coda.io/d/doc-123/Test-Table_ttable789",
+        },
+      },
+    } as any);
+
+    const client = await connect(mcpServer.server);
+    const result = await client.callTool("coda_resolve_link", {
+      url: "https://coda.io/d/doc-123/Test-Table_ttable789",
+    });
+
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text: prettyJson({
+          resource: {
+            type: "table",
+            id: "tbl-789",
+            browserLink: "https://coda.io/d/doc-123/Test-Table_ttable789",
+          },
+        }),
+      },
+    ]);
+    expect(sdk.resolveBrowserLink).toHaveBeenCalledWith({
+      query: { url: "https://coda.io/d/doc-123/Test-Table_ttable789" },
+      throwOnError: true,
+    });
+  });
+
+  it("should show error if resolve link throws", async () => {
+    vi.mocked(sdk.resolveBrowserLink).mockRejectedValue(new Error("Resource not found"));
+
+    const client = await connect(mcpServer.server);
+    const result = await client.callTool("coda_resolve_link", {
+      url: "https://coda.io/d/nonexistent-doc-456",
+    });
+
+    expect(result.content).toEqual([
+      { type: "text", text: "Failed to resolve link : Resource not found" },
+    ]);
+  });
+});
+

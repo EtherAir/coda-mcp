@@ -3,10 +3,10 @@ import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import z from "zod";
 import packageJson from "../package.json";
 import { getPageContent } from "./client/helpers";
-import { 
-  createPage, 
-  listDocs, 
-  listPages, 
+import {
+  createPage,
+  listDocs,
+  listPages,
   updatePage,
   listTables,
   getTable,
@@ -22,6 +22,7 @@ import {
   getFormula,
   listControls,
   getControl,
+  resolveBrowserLink,
   pushButton,
   whoami,
   getDoc,
@@ -842,6 +843,38 @@ server.tool(
       return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
     } catch (error) {
       return { content: [{ type: "text", text: `Failed to get user info : ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+    }
+  },
+);
+
+// ===========================================================================
+// LINK OPERATIONS
+// ===========================================================================
+
+server.tool(
+  "coda_resolve_link",
+  "Resolve metadata given a browser link to a Coda object",
+  {
+    url: z.string().describe("The browser link to resolve"),
+  },
+  async ({ url }): Promise<CallToolResult> => {
+    try {
+      const resp = await resolveBrowserLink({
+        query: { url },
+        throwOnError: true,
+      });
+
+      return { content: [{ type: "text", text: JSON.stringify(resp.data, null, 2) }] };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to resolve link : ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      };
     }
   },
 );
