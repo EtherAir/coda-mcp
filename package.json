@@ -15,7 +15,11 @@
     "build": "tsc",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "prepack": "pnpm run build",
+    "prepublishOnly": "pnpm test",
+    "pretest": "pnpm run build",
     "test": "vitest run --coverage",
+    "pretest:watch": "pnpm run build",
     "test:watch": "vitest",
     "openapi-ts": "openapi-ts",
     "inspect": "pnpm dlx @modelcontextprotocol/inspector dist/index.js"
